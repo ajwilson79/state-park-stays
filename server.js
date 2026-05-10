@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const db = new Database(join(__dirname, 'parks.db'))
+const db = new Database(join(process.env.DATA_DIR || __dirname, 'parks.db'))
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS visited_parks (
@@ -30,7 +30,7 @@ const app = express()
 app.use(express.json())
 
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', 'http://localhost:5173')
+  res.header('Access-Control-Allow-Origin', process.env.CORS_ORIGIN || 'http://localhost:5173')
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   res.header('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.sendStatus(200)
@@ -84,6 +84,11 @@ app.delete('/api/planned/:parkId', (req, res) => {
   db.prepare('DELETE FROM planned_parks WHERE park_id = ?').run(req.params.parkId)
   res.json({ ok: true })
 })
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(join(__dirname, 'dist')))
+  app.get('*', (req, res) => res.sendFile(join(__dirname, 'dist', 'index.html')))
+}
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => console.log(`API running on http://localhost:${PORT}`))

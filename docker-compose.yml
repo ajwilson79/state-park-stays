@@ -1,0 +1,13 @@
+services:
+  state-park-stays:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - park-data:/data
+    environment:
+      - DATA_DIR=/data
+    restart: unless-stopped
+
+volumes:
+  park-data:
