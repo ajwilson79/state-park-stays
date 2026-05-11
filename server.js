@@ -1,10 +1,40 @@
 import express from 'express'
 import Database from 'better-sqlite3'
+import multer from 'multer'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { existsSync, mkdirSync, unlinkSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const db = new Database(join(process.env.DATA_DIR || __dirname, 'parks.db'))
+const dataDir = process.env.DATA_DIR || __dirname
+const db = new Database(join(dataDir, 'parks.db'))
+
+const imagesDir = join(dataDir, 'park-images')
+if (!existsSync(imagesDir)) mkdirSync(imagesDir, { recursive: true })
+
+const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp']
+
+function findParkImage(parkId) {
+  for (const ext of IMAGE_EXTS) {
+    const p = join(imagesDir, `${parkId}.${ext}`)
+    if (existsSync(p)) return p
+  }
+  return null
+}
+
+const upload = multer({
+  storage: multer.diskStorage({
+    destination: imagesDir,
+    filename: (req, file, cb) => {
+      const ext = file.mimetype === 'image/png' ? 'png' : file.mimetype === 'image/webp' ? 'webp' : 'jpg'
+      cb(null, `${req.params.parkId}.${ext}`)
+    },
+  }),
+  limits: { fileSize: 15 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    file.mimetype.startsWith('image/') ? cb(null, true) : cb(new Error('Images only'))
+  },
+})
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS visited_parks (
@@ -82,6 +112,27 @@ app.put('/api/planned/:parkId', (req, res) => {
 
 app.delete('/api/planned/:parkId', (req, res) => {
   db.prepare('DELETE FROM planned_parks WHERE park_id = ?').run(req.params.parkId)
+  res.json({ ok: true })
+})
+
+app.get('/api/images/:parkId', (req, res) => {
+  const file = findParkImage(req.params.parkId)
+  if (file) return res.sendFile(file)
+  res.status(404).json({ error: 'No image' })
+})
+
+app.post('/api/images/:parkId', (req, res, next) => {
+  // Delete any existing image for this park before saving new one
+  const existing = findParkImage(req.params.parkId)
+  if (existing) unlinkSync(existing)
+  next()
+}, upload.single('photo'), (req, res) => {
+  res.json({ ok: true })
+})
+
+app.delete('/api/images/:parkId', (req, res) => {
+  const file = findParkImage(req.params.parkId)
+  if (file) unlinkSync(file)
   res.json({ ok: true })
 })
 

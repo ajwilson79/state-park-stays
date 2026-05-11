@@ -66,11 +66,11 @@ docker compose down -v
 
 ## Migrating Existing Data to Unraid
 
-If you have park data in a local `parks.db` and want to carry it over:
+If you have local data you want to carry over, copy both the database and any uploaded park photos via SSH:
 
 ```bash
-# Copy your local database to the Unraid appdata folder via SSH
 scp parks.db root@[your-unraid-ip]:/mnt/user/appdata/state-park-stays/parks.db
+scp -r park-images root@[your-unraid-ip]:/mnt/user/appdata/state-park-stays/
 ```
 
 Do this before starting the container for the first time, or while the container is stopped.

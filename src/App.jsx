@@ -10,6 +10,7 @@ export default function App() {
   const [highlightedId, setHighlightedId] = useState(null)
   const [selectedPark, setSelectedPark] = useState(null)
   const [flyTarget, setFlyTarget] = useState(null)
+  const [hoveredRegion, setHoveredRegion] = useState(null)
 
   function handleSidebarSelect(park) {
     setFlyTarget(park)
@@ -27,6 +28,7 @@ export default function App() {
         plannedMap={plannedMap}
         onSelect={handleSidebarSelect}
         onHighlight={setHighlightedId}
+        onRegionHover={setHoveredRegion}
       />
       <main className="map-container" style={{ position: 'relative' }}>
         {loading ? (
@@ -50,6 +52,7 @@ export default function App() {
             onSelect={handleMapSelect}
             highlightedId={highlightedId}
             flyTarget={flyTarget}
+            hoveredRegion={hoveredRegion}
           /></>
         )}
       </main>

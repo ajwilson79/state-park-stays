@@ -36,6 +36,8 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
   const [summaryLoading, setSummaryLoading] = useState(true)
   const [plannedDate, setPlannedDate] = useState('')
   const [showDatePicker, setShowDatePicker] = useState(false)
+  const [userPhoto, setUserPhoto] = useState(null) // null=checking, false=none, string=url
+  const [uploading, setUploading] = useState(false)
 
   const visited = visitedIds.has(park.id)
   const currentPlanned = plannedMap[park.id] ?? ''
@@ -46,6 +48,10 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
     setSummary(null)
     setPlannedDate(plannedMap[park.id] ?? '')
     setShowDatePicker(false)
+    setUserPhoto(null)
+    fetch(`/api/images/${park.id}`, { method: 'HEAD' })
+      .then(r => setUserPhoto(r.ok ? `/api/images/${park.id}?t=${Date.now()}` : false))
+      .catch(() => setUserPhoto(false))
 
     fetchNotes(park.id)
       .then(data => { setNotes(data.notes || ''); setRating(data.rating || 0) })
@@ -53,13 +59,49 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
       .finally(() => setNotesLoading(false))
 
     const title = wikipediaTitle(park.name)
-    fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (data?.extract) setSummary({ text: data.extract, url: data.content_urls?.desktop?.page })
+    const summaryUrl = `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`
+    const wikiImgUrl = `https://en.wikipedia.org/w/api.php?action=query&titles=${encodeURIComponent(title)}&prop=pageimages&pithumbsize=480&format=json&origin=*`
+    const commonsUrl = `https://commons.wikimedia.org/w/api.php?action=query&generator=search&gsrnamespace=6&gsrsearch=${encodeURIComponent(park.name)}&gsrlimit=10&prop=imageinfo&iiprop=url|dimensions|mime&iiurlwidth=480&format=json&origin=*`
+
+    const isUnsuitable = url => /map|locator|location_map|relief|blank|survey|NARA|DPLA|chart|diagram/i.test(url)
+
+    Promise.all([
+      fetch(summaryUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(wikiImgUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+      fetch(commonsUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+    ]).then(([summaryData, wikiImgData, commonsData]) => {
+      if (!summaryData?.extract) return
+
+      // 1. Try Wikipedia page image — skip if it looks like a map or archive doc
+      const wikiPages = wikiImgData?.query?.pages ?? {}
+      const wikiImage = Object.values(wikiPages)[0]?.thumbnail?.source ?? null
+      if (wikiImage && !isUnsuitable(wikiImage)) {
+        setSummary({
+          text: summaryData.extract,
+          url: summaryData.content_urls?.desktop?.page,
+          image: wikiImage,
+          attribution: null,
+        })
+        return
+      }
+
+      // 2. Fall back to Wikimedia Commons search — landscape JPEGs/PNGs, no maps or archive docs
+      const commonsPages = Object.values(commonsData?.query?.pages ?? {})
+      const commonsImage = commonsPages
+        .map(p => p.imageinfo?.[0])
+        .filter(info => info
+          && (info.mime === 'image/jpeg' || info.mime === 'image/png')
+          && info.width > info.height
+          && !isUnsuitable(info.url))
+        .sort((a, b) => (b.width / b.height) - (a.width / a.height))[0]?.url ?? null
+
+      setSummary({
+        text: summaryData.extract,
+        url: summaryData.content_urls?.desktop?.page,
+        image: commonsImage,
+        attribution: null,
       })
-      .catch(() => {})
-      .finally(() => setSummaryLoading(false))
+    }).finally(() => setSummaryLoading(false))
   }, [park.id])
 
   function handleRatingChange(newRating) {
@@ -93,6 +135,23 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
     setShowDatePicker(false)
   }
 
+  async function handlePhotoUpload(e) {
+    const file = e.target.files[0]
+    if (!file) return
+    setUploading(true)
+    const form = new FormData()
+    form.append('photo', file)
+    await fetch(`/api/images/${park.id}`, { method: 'POST', body: form })
+    setUserPhoto(`/api/images/${park.id}?t=${Date.now()}`)
+    setUploading(false)
+    e.target.value = ''
+  }
+
+  async function handleRemovePhoto() {
+    await fetch(`/api/images/${park.id}`, { method: 'DELETE' })
+    setUserPhoto(false)
+  }
+
   function handleBackdrop(e) {
     if (e.target === e.currentTarget) onClose()
   }
@@ -107,6 +166,36 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
         </div>
+
+        {(() => {
+          const displayImage = userPhoto || summary?.image
+          if (displayImage) return (
+            <div className="modal-banner">
+              <img
+                src={displayImage}
+                alt={park.name}
+                className="modal-banner-img"
+                onError={e => { e.currentTarget.style.display = 'none' }}
+              />
+              {visited && (
+                <label className="banner-upload-btn" title={userPhoto ? 'Replace photo' : 'Add your photo'}>
+                  {uploading ? '...' : userPhoto ? '📷 Replace' : '📷 Add your photo'}
+                  <input type="file" accept="image/*" onChange={handlePhotoUpload} hidden />
+                </label>
+              )}
+              {userPhoto && (
+                <button className="banner-remove-btn" onClick={handleRemovePhoto} title="Remove your photo">✕</button>
+              )}
+            </div>
+          )
+          if (visited) return (
+            <label className="banner-upload-prompt">
+              <input type="file" accept="image/*" onChange={handlePhotoUpload} hidden />
+              {uploading ? 'Uploading...' : '📷 Add a photo from your visit'}
+            </label>
+          )
+          return null
+        })()}
 
         <div className="modal-status-row">
           <button

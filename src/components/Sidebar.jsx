@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ohioParks, regions } from '../data/ohioParks'
 
-export default function Sidebar({ visitedIds, plannedMap, onSelect, onHighlight }) {
+export default function Sidebar({ visitedIds, plannedMap, onSelect, onHighlight, onRegionHover }) {
   const [search, setSearch] = useState('')
   const [activeRegion, setActiveRegion] = useState('All')
 
@@ -63,6 +63,8 @@ export default function Sidebar({ visitedIds, plannedMap, onSelect, onHighlight 
               key={r}
               className={`region-tab ${activeRegion === r ? 'active' : ''}`}
               onClick={() => setActiveRegion(r)}
+              onMouseEnter={() => onRegionHover(r)}
+              onMouseLeave={() => onRegionHover(null)}
             >
               {r}
             </button>
