@@ -51,6 +51,12 @@ db.exec(`
     planned_date TEXT,
     created_at TEXT DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS park_visits (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    park_id TEXT NOT NULL,
+    visited_date TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+  );
 `)
 
 // Add rating column if this is an existing DB without it
@@ -112,6 +118,28 @@ app.put('/api/planned/:parkId', (req, res) => {
 
 app.delete('/api/planned/:parkId', (req, res) => {
   db.prepare('DELETE FROM planned_parks WHERE park_id = ?').run(req.params.parkId)
+  res.json({ ok: true })
+})
+
+app.get('/api/visits', (req, res) => {
+  const rows = db.prepare('SELECT park_id, COUNT(*) as count FROM park_visits GROUP BY park_id').all()
+  res.json(rows)
+})
+
+app.get('/api/visits/:parkId', (req, res) => {
+  const rows = db.prepare('SELECT id, visited_date FROM park_visits WHERE park_id = ? ORDER BY visited_date DESC').all(req.params.parkId)
+  res.json(rows)
+})
+
+app.post('/api/visits/:parkId', (req, res) => {
+  const { visited_date } = req.body
+  if (!visited_date) return res.status(400).json({ error: 'visited_date required' })
+  const result = db.prepare('INSERT INTO park_visits (park_id, visited_date) VALUES (?, ?)').run(req.params.parkId, visited_date)
+  res.json({ id: result.lastInsertRowid, park_id: req.params.parkId, visited_date })
+})
+
+app.delete('/api/visits/:parkId/:visitId', (req, res) => {
+  db.prepare('DELETE FROM park_visits WHERE id = ? AND park_id = ?').run(req.params.visitId, req.params.parkId)
   res.json({ ok: true })
 })
 

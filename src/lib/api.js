@@ -40,6 +40,34 @@ export async function removePlanned(parkId) {
   return res.json()
 }
 
+export async function fetchVisitCounts() {
+  const res = await fetch(`${BASE}/api/visits`)
+  if (!res.ok) throw new Error(`Server error: ${res.status}`)
+  return res.json()
+}
+
+export async function fetchParkVisits(parkId) {
+  const res = await fetch(`${BASE}/api/visits/${encodeURIComponent(parkId)}`)
+  if (!res.ok) throw new Error(`Server error: ${res.status}`)
+  return res.json()
+}
+
+export async function addParkVisit(parkId, visitedDate) {
+  const res = await fetch(`${BASE}/api/visits/${encodeURIComponent(parkId)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visited_date: visitedDate }),
+  })
+  if (!res.ok) throw new Error(`Server error: ${res.status}`)
+  return res.json()
+}
+
+export async function deleteParkVisit(parkId, visitId) {
+  const res = await fetch(`${BASE}/api/visits/${encodeURIComponent(parkId)}/${visitId}`, { method: 'DELETE' })
+  if (!res.ok) throw new Error(`Server error: ${res.status}`)
+  return res.json()
+}
+
 export async function fetchNotes(parkId) {
   const res = await fetch(`${BASE}/api/notes/${encodeURIComponent(parkId)}`)
   if (!res.ok) throw new Error(`Server error: ${res.status}`)

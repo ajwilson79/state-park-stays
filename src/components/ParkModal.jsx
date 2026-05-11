@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchNotes, saveNotes } from '../lib/api'
+import { fetchNotes, saveNotes, fetchParkVisits } from '../lib/api'
 
 function wikipediaTitle(parkName) {
   return parkName.replace(/ /g, '_')
@@ -26,7 +26,7 @@ function StarRating({ value, onChange }) {
   )
 }
 
-export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSetPlanned, onRemovePlanned, onClose }) {
+export default function ParkModal({ park, visitedIds, plannedMap, isFavorite, onToggle, onSetPlanned, onRemovePlanned, onAddVisit, onRemoveVisit, onClose }) {
   const [notes, setNotes] = useState('')
   const [rating, setRating] = useState(0)
   const [notesLoading, setNotesLoading] = useState(true)
@@ -38,6 +38,9 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
   const [showDatePicker, setShowDatePicker] = useState(false)
   const [userPhoto, setUserPhoto] = useState(null) // null=checking, false=none, string=url
   const [uploading, setUploading] = useState(false)
+  const [visits, setVisits] = useState([])
+  const [showAddVisit, setShowAddVisit] = useState(false)
+  const [newVisitDate, setNewVisitDate] = useState('')
 
   const visited = visitedIds.has(park.id)
   const currentPlanned = plannedMap[park.id] ?? ''
@@ -49,6 +52,10 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
     setPlannedDate(plannedMap[park.id] ?? '')
     setShowDatePicker(false)
     setUserPhoto(null)
+    setVisits([])
+    setShowAddVisit(false)
+    setNewVisitDate('')
+    fetchParkVisits(park.id).then(setVisits).catch(() => {})
     fetch(`/api/images/${park.id}`, { method: 'HEAD' })
       .then(r => setUserPhoto(r.ok ? `/api/images/${park.id}?t=${Date.now()}` : false))
       .catch(() => setUserPhoto(false))
@@ -147,6 +154,19 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
     e.target.value = ''
   }
 
+  async function handleAddVisit() {
+    if (!newVisitDate) return
+    const entry = await onAddVisit(park.id, newVisitDate)
+    setVisits(prev => [entry, ...prev].sort((a, b) => b.visited_date.localeCompare(a.visited_date)))
+    setNewVisitDate('')
+    setShowAddVisit(false)
+  }
+
+  async function handleDeleteVisit(visitId) {
+    await onRemoveVisit(park.id, visitId)
+    setVisits(prev => prev.filter(v => v.id !== visitId))
+  }
+
   async function handleRemovePhoto() {
     await fetch(`/api/images/${park.id}`, { method: 'DELETE' })
     setUserPhoto(false)
@@ -161,7 +181,10 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
       <div className="modal">
         <div className="modal-header">
           <div>
-            <h2 className="modal-park-name">{park.name}</h2>
+            <h2 className="modal-park-name">
+              {park.name}
+              {isFavorite && <span className="modal-favorite-badge" title="Your most-visited park">👑</span>}
+            </h2>
             <span className="modal-region">{park.region}</span>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
@@ -235,6 +258,47 @@ export default function ParkModal({ park, visitedIds, plannedMap, onToggle, onSe
             )}
           </div>
         </div>
+
+        {visited && (
+          <div className="visit-log-section">
+            <div className="visit-log-header">
+              <span className="visit-log-title">
+                {isFavorite ? '👑 Favorite Park' : 'Visit Log'}
+                {visits.length > 0 && <span className="visit-count-badge">{visits.length}</span>}
+              </span>
+              {!showAddVisit && (
+                <button className="btn-add-visit" onClick={() => { setShowAddVisit(true); setNewVisitDate('') }}>
+                  + Log a Visit
+                </button>
+              )}
+            </div>
+            {showAddVisit && (
+              <div className="add-visit-row">
+                <input
+                  type="date"
+                  className="date-input"
+                  value={newVisitDate}
+                  onChange={e => setNewVisitDate(e.target.value)}
+                  autoFocus
+                />
+                <button className="btn-plan-save" onClick={handleAddVisit} disabled={!newVisitDate}>Add</button>
+                <button className="btn-plan-remove" onClick={() => setShowAddVisit(false)}>Cancel</button>
+              </div>
+            )}
+            {visits.length > 0 ? (
+              <div className="visit-list">
+                {visits.map(v => (
+                  <div key={v.id} className="visit-entry">
+                    <span className="visit-date">{v.visited_date}</span>
+                    <button className="visit-delete" onClick={() => handleDeleteVisit(v.id)} title="Remove this visit">✕</button>
+                  </div>
+                ))}
+              </div>
+            ) : !showAddVisit && (
+              <p className="visit-log-empty">No visits logged yet — click "Log a Visit" to add one.</p>
+            )}
+          </div>
+        )}
 
         <div className="modal-summary">
           {summaryLoading ? (

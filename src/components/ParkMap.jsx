@@ -111,6 +111,15 @@ const FLYTO_STYLE = {
   fillOpacity: 0.95,
 }
 
+const FAVORITE_STYLE = {
+  radius: 13,
+  fillColor: '#ffd700',
+  color: '#e65100',
+  weight: 3,
+  opacity: 1,
+  fillOpacity: 0.95,
+}
+
 const HULL_STYLE = {
   color: '#ff9100',
   weight: 2.5,
@@ -121,7 +130,7 @@ const HULL_STYLE = {
   interactive: false,
 }
 
-export default function ParkMap({ parks, visitedIds, plannedMap, onSelect, highlightedId, flyTarget, hoveredRegion }) {
+export default function ParkMap({ parks, visitedIds, plannedMap, favoriteParkId, onSelect, highlightedId, flyTarget, hoveredRegion }) {
   const regionHull = useMemo(() => {
     if (!hoveredRegion) return null
     return regionPolygon(parks.filter(p => p.region === hoveredRegion))
@@ -148,17 +157,18 @@ export default function ParkMap({ parks, visitedIds, plannedMap, onSelect, highl
         const visited = visitedIds.has(park.id)
         const planned = !!plannedMap[park.id]
         const isFlyTarget = park.id === flyTarget?.id
+        const isFavorite = park.id === favoriteParkId
         const isSidebarHover = park.id === highlightedId
         const inHoveredRegion = hoveredRegion && park.region === hoveredRegion
         const dimmed = hoveredRegion && !inHoveredRegion && !isFlyTarget
-        const style = isFlyTarget ? FLYTO_STYLE : visited ? VISITED_STYLE : planned ? PLANNED_STYLE : UNVISITED_STYLE
+        const style = isFlyTarget ? FLYTO_STYLE : isFavorite ? FAVORITE_STYLE : visited ? VISITED_STYLE : planned ? PLANNED_STYLE : UNVISITED_STYLE
         const radius = isFlyTarget ? style.radius
           : inHoveredRegion ? style.radius + 4
           : isSidebarHover ? style.radius + 3
           : style.radius
         return (
           <CircleMarker
-            key={`${park.id}-${visited}-${planned}-${isFlyTarget}-${inHoveredRegion}`}
+            key={`${park.id}-${visited}-${planned}-${isFlyTarget}-${isFavorite}-${inHoveredRegion}`}
             center={[park.lat, park.lng]}
             radius={radius}
             pathOptions={{
@@ -171,10 +181,10 @@ export default function ParkMap({ parks, visitedIds, plannedMap, onSelect, highl
             eventHandlers={{ click: () => onSelect(park) }}
           >
             <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
-              <span style={{ fontWeight: 600 }}>{park.name}</span>
+              <span style={{ fontWeight: 600 }}>{park.name}{isFavorite ? ' 👑' : ''}</span>
               <br />
-              <span style={{ color: visited ? '#2d7d32' : planned ? '#1565c0' : '#78909c' }}>
-                {visited ? '✓ Visited' : planned ? `Planned: ${plannedMap[park.id]}` : 'Not yet visited'}
+              <span style={{ color: isFavorite ? '#e65100' : visited ? '#2d7d32' : planned ? '#1565c0' : '#78909c' }}>
+                {isFavorite ? 'Your favorite park' : visited ? '✓ Visited' : planned ? `Planned: ${plannedMap[park.id]}` : 'Not yet visited'}
               </span>
             </Tooltip>
           </CircleMarker>

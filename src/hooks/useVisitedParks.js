@@ -1,23 +1,34 @@
-import { useState, useEffect, useCallback } from 'react'
-import { fetchVisited, markVisited, markUnvisited, fetchPlanned, setPlanned, removePlanned } from '../lib/api'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { fetchVisited, markVisited, markUnvisited, fetchPlanned, setPlanned, removePlanned, fetchVisitCounts, addParkVisit, deleteParkVisit } from '../lib/api'
 
 export function useVisitedParks() {
   const [visitedIds, setVisitedIds] = useState(new Set())
   const [plannedMap, setPlannedMap] = useState({}) // parkId -> date string
+  const [visitCounts, setVisitCounts] = useState({}) // parkId -> count
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    Promise.all([fetchVisited(), fetchPlanned()])
-      .then(([visited, planned]) => {
+    Promise.all([fetchVisited(), fetchPlanned(), fetchVisitCounts()])
+      .then(([visited, planned, counts]) => {
         setVisitedIds(new Set(visited.map(r => r.park_id)))
         const pMap = {}
         planned.forEach(r => { pMap[r.park_id] = r.planned_date })
         setPlannedMap(pMap)
+        const cMap = {}
+        counts.forEach(r => { cMap[r.park_id] = r.count })
+        setVisitCounts(cMap)
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [])
+
+  const favoriteParkId = useMemo(() => {
+    const entries = Object.entries(visitCounts)
+    if (entries.length === 0) return null
+    const [id, max] = entries.reduce((best, cur) => cur[1] > best[1] ? cur : best)
+    return max >= 1 ? id : null
+  }, [visitCounts])
 
   const toggleVisited = useCallback(async (parkId) => {
     const isVisited = visitedIds.has(parkId)
@@ -76,5 +87,37 @@ export function useVisitedParks() {
     }
   }, [plannedMap])
 
-  return { visitedIds, plannedMap, loading, error, toggleVisited, setParkPlanned, removeParkPlanned }
+  const addVisit = useCallback(async (parkId, date) => {
+    setVisitCounts(prev => ({ ...prev, [parkId]: (prev[parkId] ?? 0) + 1 }))
+    try {
+      return await addParkVisit(parkId, date)
+    } catch (err) {
+      setError(err.message)
+      setVisitCounts(prev => {
+        const n = { ...prev }
+        if (n[parkId] > 1) n[parkId] -= 1
+        else delete n[parkId]
+        return n
+      })
+      throw err
+    }
+  }, [])
+
+  const removeVisit = useCallback(async (parkId, visitId) => {
+    setVisitCounts(prev => {
+      const n = { ...prev }
+      if ((n[parkId] ?? 0) > 1) n[parkId] -= 1
+      else delete n[parkId]
+      return n
+    })
+    try {
+      await deleteParkVisit(parkId, visitId)
+    } catch (err) {
+      setError(err.message)
+      setVisitCounts(prev => ({ ...prev, [parkId]: (prev[parkId] ?? 0) + 1 }))
+      throw err
+    }
+  }, [])
+
+  return { visitedIds, plannedMap, visitCounts, favoriteParkId, loading, error, toggleVisited, setParkPlanned, removeParkPlanned, addVisit, removeVisit }
 }
