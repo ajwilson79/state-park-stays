@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { ohioParks, regions } from '../data/ohioParks'
 
-export default function Sidebar({ visitedIds, plannedMap, favoriteParkId, visitCounts, onSelect, onHighlight, onRegionHover }) {
+const RANK_LABELS = { 1: '🥇', 2: '🥈', 3: '🥉' }
+
+export default function Sidebar({ visitedIds, plannedMap, parkRanks, visitDays, onSelect, onHighlight, onRegionHover }) {
   const [search, setSearch] = useState('')
   const [activeRegion, setActiveRegion] = useState('All')
 
@@ -94,10 +96,12 @@ export default function Sidebar({ visitedIds, plannedMap, favoriteParkId, visitC
                       {visited ? '✓' : planned ? '📅' : '○'}
                     </span>
                     <span className="park-name">
-                      {park.name}
-                      {park.id === favoriteParkId && (
-                        <span className="favorite-badge" title={`Most visited (${visitCounts[park.id]} visits)`}>👑</span>
+                      {park.id in parkRanks && (
+                        <span className="rank-badge" title={`${visitDays[park.id]} night${visitDays[park.id] !== 1 ? 's' : ''}`}>
+                          {RANK_LABELS[parkRanks[park.id]]}
+                        </span>
                       )}
+                      {park.name}
                       {planned && <span className="planned-date-label">{plannedMap[park.id]}</span>}
                     </span>
                   </div>

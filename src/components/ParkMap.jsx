@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, CircleMarker, Tooltip, GeoJSON, Polygon, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Marker, Tooltip, GeoJSON, Polygon, useMap } from 'react-leaflet'
+import { divIcon } from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import ohioBoundary from '../data/ohioBoundary.json'
 
@@ -25,18 +26,6 @@ function convexHull(points) {
   return hull
 }
 
-// Push each hull vertex outward from the centroid so the polygon
-// encapsulates parks rather than passing through them
-function inflate(hull, padding = 0.25) {
-  const cx = hull.reduce((s, p) => s + p[0], 0) / hull.length
-  const cy = hull.reduce((s, p) => s + p[1], 0) / hull.length
-  return hull.map(([lat, lng]) => {
-    const dx = lat - cx, dy = lng - cy
-    const d = Math.hypot(dx, dy) || 1
-    return [lat + (dx / d) * padding, lng + (dy / d) * padding]
-  })
-}
-
 // Chaikin curve subdivision — cuts corners repeatedly to produce smooth curves
 function chaikin(pts, iterations = 3) {
   let p = pts
@@ -52,9 +41,18 @@ function chaikin(pts, iterations = 3) {
   return p
 }
 
+// Buffer each park into a ring of sample points, then hull + smooth.
+// This guarantees every park has clearance before Chaikin cuts corners inward.
 function regionPolygon(parks) {
-  const pts = parks.map(p => [p.lat, p.lng])
-  return chaikin(inflate(convexHull(pts)))
+  const BUFFER = 0.18
+  const SIDES = 10
+  const expanded = parks.flatMap(({ lat, lng }) =>
+    Array.from({ length: SIDES }, (_, i) => {
+      const a = (2 * Math.PI * i) / SIDES
+      return [lat + BUFFER * Math.cos(a), lng + BUFFER * Math.sin(a)]
+    })
+  )
+  return chaikin(convexHull(expanded))
 }
 
 function MapFlyTo({ target }) {
@@ -111,13 +109,25 @@ const FLYTO_STYLE = {
   fillOpacity: 0.95,
 }
 
-const FAVORITE_STYLE = {
-  radius: 13,
-  fillColor: '#ffd700',
-  color: '#e65100',
-  weight: 3,
-  opacity: 1,
-  fillOpacity: 0.95,
+const RANK_LABELS = { 1: '🥇', 2: '🥈', 3: '🥉' }
+const RANK_TITLES = { 1: 'Most visited park', 2: '2nd most visited', 3: '3rd most visited' }
+const RANK_BG    = { 1: '#ffd700', 2: '#d8d8d8', 3: '#cd7f32' }
+const RANK_BORDER = { 1: '#b8860b', 2: '#757575', 3: '#6d4c00' }
+const RANK_SIZE  = { 1: 34, 2: 30, 3: 28 }
+
+function medalIcon(rank, dimmed, highlighted) {
+  const size = RANK_SIZE[rank]
+  const bg = RANK_BG[rank]
+  const border = highlighted ? '#ff9100' : RANK_BORDER[rank]
+  const opacity = dimmed ? 0.1 : 1
+  const fontSize = rank === 1 ? 18 : 16
+  return divIcon({
+    html: `<div style="width:${size}px;height:${size}px;background:${bg};border:2.5px solid ${border};border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:${fontSize}px;box-shadow:0 2px 6px rgba(0,0,0,0.45);opacity:${opacity};">${RANK_LABELS[rank]}</div>`,
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    tooltipAnchor: [0, -(size / 2) - 4],
+  })
 }
 
 const HULL_STYLE = {
@@ -130,7 +140,7 @@ const HULL_STYLE = {
   interactive: false,
 }
 
-export default function ParkMap({ parks, visitedIds, plannedMap, favoriteParkId, onSelect, highlightedId, flyTarget, hoveredRegion }) {
+export default function ParkMap({ parks, visitedIds, plannedMap, parkRanks, onSelect, highlightedId, flyTarget, hoveredRegion }) {
   const regionHull = useMemo(() => {
     if (!hoveredRegion) return null
     return regionPolygon(parks.filter(p => p.region === hoveredRegion))
@@ -157,18 +167,19 @@ export default function ParkMap({ parks, visitedIds, plannedMap, favoriteParkId,
         const visited = visitedIds.has(park.id)
         const planned = !!plannedMap[park.id]
         const isFlyTarget = park.id === flyTarget?.id
-        const isFavorite = park.id === favoriteParkId
+        const rank = parkRanks[park.id] ?? null
         const isSidebarHover = park.id === highlightedId
         const inHoveredRegion = hoveredRegion && park.region === hoveredRegion
         const dimmed = hoveredRegion && !inHoveredRegion && !isFlyTarget
-        const style = isFlyTarget ? FLYTO_STYLE : isFavorite ? FAVORITE_STYLE : visited ? VISITED_STYLE : planned ? PLANNED_STYLE : UNVISITED_STYLE
+        if (rank) return null  // rendered separately below as medal markers
+        const style = isFlyTarget ? FLYTO_STYLE : visited ? VISITED_STYLE : planned ? PLANNED_STYLE : UNVISITED_STYLE
         const radius = isFlyTarget ? style.radius
           : inHoveredRegion ? style.radius + 4
           : isSidebarHover ? style.radius + 3
           : style.radius
         return (
           <CircleMarker
-            key={`${park.id}-${visited}-${planned}-${isFlyTarget}-${isFavorite}-${inHoveredRegion}`}
+            key={`${park.id}-${visited}-${planned}-${isFlyTarget}-${inHoveredRegion}`}
             center={[park.lat, park.lng]}
             radius={radius}
             pathOptions={{
@@ -181,13 +192,39 @@ export default function ParkMap({ parks, visitedIds, plannedMap, favoriteParkId,
             eventHandlers={{ click: () => onSelect(park) }}
           >
             <Tooltip direction="top" offset={[0, -6]} opacity={0.95}>
-              <span style={{ fontWeight: 600 }}>{park.name}{isFavorite ? ' 👑' : ''}</span>
+              <span style={{ fontWeight: 600 }}>{park.name}</span>
               <br />
-              <span style={{ color: isFavorite ? '#e65100' : visited ? '#2d7d32' : planned ? '#1565c0' : '#78909c' }}>
-                {isFavorite ? 'Your favorite park' : visited ? '✓ Visited' : planned ? `Planned: ${plannedMap[park.id]}` : 'Not yet visited'}
+              <span style={{ color: visited ? '#2d7d32' : planned ? '#1565c0' : '#78909c' }}>
+                {visited ? '✓ Visited' : planned ? `Planned: ${plannedMap[park.id]}` : 'Not yet visited'}
               </span>
             </Tooltip>
           </CircleMarker>
+        )
+      })}
+      {parks.map(park => {
+        const rank = parkRanks[park.id] ?? null
+        if (!rank) return null
+        const visited = visitedIds.has(park.id)
+        const planned = !!plannedMap[park.id]
+        const isFlyTarget = park.id === flyTarget?.id
+        const isSidebarHover = park.id === highlightedId
+        const inHoveredRegion = hoveredRegion && park.region === hoveredRegion
+        const dimmed = hoveredRegion && !inHoveredRegion && !isFlyTarget
+        const highlighted = inHoveredRegion || isSidebarHover
+        return (
+          <Marker
+            key={`medal-${park.id}-${rank}-${dimmed}-${highlighted}-${isFlyTarget}`}
+            position={[park.lat, park.lng]}
+            icon={medalIcon(rank, dimmed, highlighted)}
+            eventHandlers={{ click: () => onSelect(park) }}
+          >
+            <Tooltip direction="top" offset={[0, 0]} opacity={0.95}>
+              <span style={{ fontWeight: 600 }}>{RANK_LABELS[rank]} {park.name}</span>
+              <br />
+              <span style={{ color: '#b8860b' }}>{RANK_TITLES[rank]}</span>
+              {visited && <><br /><span style={{ color: '#2d7d32' }}>✓ Visited</span></>}
+            </Tooltip>
+          </Marker>
         )
       })}
     </MapContainer>

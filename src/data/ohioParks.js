@@ -2,6 +2,7 @@ export const ohioParks = [
   // Greater Cincinnati
   { id: "caesar-creek", name: "Caesar Creek State Park", lat: 39.5222, lng: -84.0139, region: "Greater Cincinnati" },
   { id: "east-fork", name: "East Fork State Park", lat: 39.02, lng: -84.1139, region: "Greater Cincinnati" },
+  { id: "little-miami-scenic", name: "Little Miami Scenic State Park", lat: 39.5145, lng: -84.0300, region: "Greater Cincinnati" },
   { id: "stonelick", name: "Stonelick State Park", lat: 39.22, lng: -84.07, region: "Greater Cincinnati" },
 
   // Greater Columbus
@@ -29,6 +30,7 @@ export const ohioParks = [
   { id: "tar-hollow", name: "Tar Hollow State Park", lat: 39.356, lng: -82.777, region: "Miami-Scioto Basins" },
   { id: "lake-white", name: "Lake White State Park", lat: 39.0578, lng: -83.0025, region: "Miami-Scioto Basins" },
   { id: "grand-lake-st-marys", name: "Grand Lake St. Marys State Park", lat: 40.533, lng: -84.517, region: "Miami-Scioto Basins" },
+  { id: "great-council", name: "Great Council State Park", lat: 39.7291, lng: -83.9373, region: "Miami-Scioto Basins" },
   { id: "sycamore", name: "Sycamore State Park", lat: 39.8267, lng: -84.3456, region: "Miami-Scioto Basins" },
 
   // Northeast Ohio

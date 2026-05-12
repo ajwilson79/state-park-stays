@@ -29,12 +29,12 @@ ohioParks.js (static)
      ▼
 App.jsx  ──── useVisitedParks (hook) ──── api.js ──── server.js ──── parks.db
      │              │
-     ├── Sidebar    └── visitedIds (Set), plannedMap (parkId → dateString)
-     ├── ParkMap
+     ├── Sidebar    └── visitedIds (Set), plannedMap (parkId → dateString),
+     ├── ParkMap        visitDays (parkId → total nights), parkRanks (parkId → 1|2|3)
      └── ParkModal
 ```
 
-`useVisitedParks` does optimistic updates with rollback on error for all visited/planned mutations.
+`useVisitedParks` does optimistic updates with rollback on error for all visited/planned/visit mutations.
 
 ### Park states and map markers
 
@@ -62,8 +62,8 @@ Additionally, when a park is hovered in the sidebar (`highlightedId`) or falls w
 
 `ParkMap` computes a region polygon via three steps:
 
-1. **`convexHull`** — Jarvis march on the region's park coordinates
-2. **`inflate`** — pushes each hull vertex 0.25° outward from the centroid so the polygon encapsulates rather than touches the outermost parks
+1. **Buffer** — each park is expanded into a ring of 10 sample points at radius 0.18° (guarantees clearance before smoothing cuts inward)
+2. **`convexHull`** — Jarvis march on all buffer points
 3. **`chaikin`** — 3 iterations of Chaikin curve subdivision to smooth the angular hull into a soft rounded shape
 
 The result is rendered as a react-leaflet `Polygon` with `interactive: false`. Keyed by `hoveredRegion` to force remount on region change. Computed with `useMemo`.
@@ -94,14 +94,17 @@ In the modal, the upload button only appears when the park is marked visited. A 
 
 ### Database schema
 
-Three tables in `parks.db`:
+Four tables in `parks.db`:
 
-- `visited_parks(park_id TEXT PK, visited_at TEXT)`
-- `park_notes(park_id TEXT PK, notes TEXT, rating INTEGER, updated_at TEXT)` — rating column was added via `ALTER TABLE` with try/catch for existing DBs
+- `visited_parks(park_id TEXT PK, visited_at TEXT)` — auto-managed: added on first visit log entry, removed when last entry is deleted
+- `park_notes(park_id TEXT PK, notes TEXT, rating INTEGER, updated_at TEXT)` — rating column added via `ALTER TABLE` with try/catch for existing DBs
 - `planned_parks(park_id TEXT PK, planned_date TEXT, created_at TEXT)`
+- `park_visits(id INTEGER PK, park_id TEXT, visited_date TEXT NOT NULL, start_date TEXT, end_date TEXT, created_at TEXT)` — `visited_date` kept for migration compat; `start_date`/`end_date` are the real data. Same-day entry = day trip (counts as 1 night for ranking).
+
+`GET /api/visits` returns total nights per park using `SUM(CASE WHEN end_date = start_date THEN 1 ELSE julianday(end_date) - julianday(start_date) END)`. The top 3 parks by total nights (minimum 2) receive gold/silver/bronze `parkRanks` displayed as medal markers on the map and badges in the sidebar.
 
 Marking a park visited automatically removes it from `planned_parks` (handled in `useVisitedParks.toggleVisited`).
 
 ### Park data
 
-`src/data/ohioParks.js` — 73 Ohio state parks as `{ id, name, lat, lng, region }`. Region is one of 8 areas. `src/data/ohioBoundary.json` is a GeoJSON polygon for the dashed Ohio state border overlay.
+`src/data/ohioParks.js` — 76 Ohio state parks as `{ id, name, lat, lng, region }`. Region is one of 8 areas. `src/data/ohioBoundary.json` is a GeoJSON polygon for the dashed Ohio state border overlay.

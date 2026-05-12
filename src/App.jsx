@@ -6,7 +6,7 @@ import { useVisitedParks } from './hooks/useVisitedParks'
 import { ohioParks } from './data/ohioParks'
 
 export default function App() {
-  const { visitedIds, plannedMap, visitCounts, favoriteParkId, loading, error, toggleVisited, setParkPlanned, removeParkPlanned, addVisit, removeVisit } = useVisitedParks()
+  const { visitedIds, plannedMap, visitDays, parkRanks, loading, error, toggleVisited, setParkPlanned, removeParkPlanned, addVisit, removeVisit } = useVisitedParks()
   const [highlightedId, setHighlightedId] = useState(null)
   const [selectedPark, setSelectedPark] = useState(null)
   const [flyTarget, setFlyTarget] = useState(null)
@@ -26,8 +26,8 @@ export default function App() {
       <Sidebar
         visitedIds={visitedIds}
         plannedMap={plannedMap}
-        favoriteParkId={favoriteParkId}
-        visitCounts={visitCounts}
+        parkRanks={parkRanks}
+        visitDays={visitDays}
         onSelect={handleSidebarSelect}
         onHighlight={setHighlightedId}
         onRegionHover={setHoveredRegion}
@@ -51,7 +51,7 @@ export default function App() {
             parks={ohioParks}
             visitedIds={visitedIds}
             plannedMap={plannedMap}
-            favoriteParkId={favoriteParkId}
+            parkRanks={parkRanks}
             onSelect={handleMapSelect}
             highlightedId={highlightedId}
             flyTarget={flyTarget}
@@ -65,8 +65,8 @@ export default function App() {
           park={selectedPark}
           visitedIds={visitedIds}
           plannedMap={plannedMap}
-          isFavorite={selectedPark.id === favoriteParkId}
-          onToggle={toggleVisited}
+          parkRank={parkRanks[selectedPark.id] ?? null}
+          onMarkUnvisited={toggleVisited}
           onSetPlanned={setParkPlanned}
           onRemovePlanned={removeParkPlanned}
           onAddVisit={addVisit}

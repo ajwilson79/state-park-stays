@@ -59,8 +59,11 @@ db.exec(`
   );
 `)
 
-// Add rating column if this is an existing DB without it
 try { db.exec('ALTER TABLE park_notes ADD COLUMN rating INTEGER') } catch {}
+try { db.exec('ALTER TABLE park_visits ADD COLUMN start_date TEXT') } catch {}
+try { db.exec('ALTER TABLE park_visits ADD COLUMN end_date TEXT') } catch {}
+// Migrate single-date visits: visited_date → start_date = end_date
+db.exec(`UPDATE park_visits SET start_date = visited_date, end_date = visited_date WHERE start_date IS NULL AND visited_date IS NOT NULL`)
 
 const app = express()
 app.use(express.json())
@@ -122,24 +125,35 @@ app.delete('/api/planned/:parkId', (req, res) => {
 })
 
 app.get('/api/visits', (req, res) => {
-  const rows = db.prepare('SELECT park_id, COUNT(*) as count FROM park_visits GROUP BY park_id').all()
+  // Nights per stay: same-day visit = 1, multi-day = actual nights
+  const rows = db.prepare(`
+    SELECT park_id,
+      SUM(CASE WHEN end_date IS NULL OR end_date = start_date THEN 1
+               ELSE CAST(ROUND(julianday(end_date) - julianday(start_date)) AS INTEGER)
+          END) as total_nights
+    FROM park_visits GROUP BY park_id
+  `).all()
   res.json(rows)
 })
 
 app.get('/api/visits/:parkId', (req, res) => {
-  const rows = db.prepare('SELECT id, visited_date FROM park_visits WHERE park_id = ? ORDER BY visited_date DESC').all(req.params.parkId)
+  const rows = db.prepare('SELECT id, start_date, end_date FROM park_visits WHERE park_id = ? ORDER BY start_date DESC').all(req.params.parkId)
   res.json(rows)
 })
 
 app.post('/api/visits/:parkId', (req, res) => {
-  const { visited_date } = req.body
-  if (!visited_date) return res.status(400).json({ error: 'visited_date required' })
-  const result = db.prepare('INSERT INTO park_visits (park_id, visited_date) VALUES (?, ?)').run(req.params.parkId, visited_date)
-  res.json({ id: result.lastInsertRowid, park_id: req.params.parkId, visited_date })
+  const { start_date, end_date } = req.body
+  if (!start_date) return res.status(400).json({ error: 'start_date required' })
+  const ed = end_date || start_date
+  const result = db.prepare('INSERT INTO park_visits (park_id, visited_date, start_date, end_date) VALUES (?, ?, ?, ?)').run(req.params.parkId, start_date, start_date, ed)
+  db.prepare('INSERT OR IGNORE INTO visited_parks (park_id) VALUES (?)').run(req.params.parkId)
+  res.json({ id: result.lastInsertRowid, park_id: req.params.parkId, start_date, end_date: ed })
 })
 
 app.delete('/api/visits/:parkId/:visitId', (req, res) => {
   db.prepare('DELETE FROM park_visits WHERE id = ? AND park_id = ?').run(req.params.visitId, req.params.parkId)
+  const { count } = db.prepare('SELECT COUNT(*) as count FROM park_visits WHERE park_id = ?').get(req.params.parkId)
+  if (count === 0) db.prepare('DELETE FROM visited_parks WHERE park_id = ?').run(req.params.parkId)
   res.json({ ok: true })
 })
 

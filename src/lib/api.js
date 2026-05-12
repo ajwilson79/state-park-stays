@@ -52,11 +52,11 @@ export async function fetchParkVisits(parkId) {
   return res.json()
 }
 
-export async function addParkVisit(parkId, visitedDate) {
+export async function addParkVisit(parkId, startDate, endDate) {
   const res = await fetch(`${BASE}/api/visits/${encodeURIComponent(parkId)}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ visited_date: visitedDate }),
+    body: JSON.stringify({ start_date: startDate, end_date: endDate || startDate }),
   })
   if (!res.ok) throw new Error(`Server error: ${res.status}`)
   return res.json()

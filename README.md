@@ -1,6 +1,6 @@
 # Ohio State Park Stays
 
-A family trip tracker for all 73 Ohio State Parks. Mark parks as visited, plan future trips with dates, write notes, rate each park, and upload your own photos from visits — all on an interactive map.
+A family trip tracker for all 76 Ohio State Parks. Mark parks as visited, plan future trips with dates, write notes, rate each park, and upload your own photos from visits — all on an interactive map.
 
 ## Setup
 
@@ -17,7 +17,7 @@ Open [http://localhost:5173](http://localhost:5173) in your browser. The app sto
 
 ### Map
 
-The interactive map shows all 73 Ohio State Parks as color-coded markers:
+The interactive map shows all 76 Ohio State Parks as color-coded markers:
 
 | Color | Meaning |
 |-------|---------|
@@ -47,19 +47,21 @@ The header shows your total progress (visited count and percentage) and how many
 
 Click any map marker to open the detail panel for that park. From here you can:
 
-**Mark as Visited** — toggles the park between visited and unvisited. Marking a park visited automatically removes any planned trip for it.
+**Visit Log** — log every trip with a check-in and check-out date (or just a single day for a day trip). The app tracks total nights per park and displays a live duration label while picking dates. Logging the first visit automatically marks the park as visited; deleting the last entry unmarks it. A park marked visited via the old toggle (no log entries) shows a "Remove visited status" escape hatch.
 
-**Plan a Visit** — click "📅 Plan Visit" to pick a date. The date shows on the map marker tooltip and in the sidebar list. You can change or remove the date at any time.
+**Plan a Visit** — for unvisited parks, click "📅 Plan Visit" to pick a future date. The date appears on the map marker tooltip and in the sidebar. You can change or remove it at any time.
 
-**Notes** — write freeform notes about the park: trails, campsite tips, things to do, dates you went, etc.
+**Medals** — the three parks with the most total nights (minimum 2) earn 🥇🥈🥉 badges shown in the sidebar and as special markers on the map.
+
+**Notes** — write freeform notes about the park: trails, campsite tips, things to do, etc.
 
 **Rating** — give the park a 1–5 star rating. Click the same star again to clear it.
 
-Notes and rating are saved together when you click **Save**. Planning a visit has its own save button separate from notes.
+Notes and rating are saved together when you click **Save & Close**.
 
 **Park photo** — the panel shows a photo sourced from Wikipedia or Wikimedia Commons when available.
 
-**Your visit photo** — once a park is marked visited, a "📷 Add a photo from your visit" prompt appears. Upload any image from your device and it becomes the park's hero photo, replacing the default. You can replace or remove it at any time.
+**Your visit photo** — once a park has visits logged, a "📷 Add a photo from your visit" prompt appears. Upload any image from your device and it becomes the park's hero photo, replacing the default. You can replace or remove it at any time.
 
 ### Regions
 
